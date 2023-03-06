@@ -100,7 +100,7 @@ export class InfraStack extends Stack {
           deviceName: '/dev/xvda',
           volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
         }],
-        init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props)),
+        init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props),
         initOptions: {
           ignoreFailures: false,
         },
@@ -137,7 +137,7 @@ export class InfraStack extends Stack {
             deviceName: '/dev/xvda',
             volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
           }],
-          init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, 'manager')),
+          init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props, 'manager'),
           initOptions: {
             ignoreFailures: false,
           },
@@ -169,7 +169,7 @@ export class InfraStack extends Stack {
           deviceName: '/dev/xvda',
           volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
         }],
-        init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, seedConfig)),
+        init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props, seedConfig),
         initOptions: {
           ignoreFailures: false,
         },
@@ -196,7 +196,7 @@ export class InfraStack extends Stack {
           deviceName: '/dev/xvda',
           volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
         }],
-        init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, 'data')),
+        init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props, 'data'),
         initOptions: {
           ignoreFailures: false,
         },
@@ -226,7 +226,7 @@ export class InfraStack extends Stack {
             deviceName: '/dev/xvda',
             volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
           }],
-          init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, 'client')),
+          init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props, 'client'),
           initOptions: {
             ignoreFailures: false,
           },
@@ -257,7 +257,7 @@ export class InfraStack extends Stack {
             deviceName: '/dev/xvda',
             volume: BlockDeviceVolume.ebs(50, { deleteOnTermination: true }),
           }],
-          init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, 'ml')),
+          init: InfraStack.constructCloudFormationInit(this, clusterLogGroup, props, 'ml'),
           initOptions: {
             ignoreFailures: false,
           },
@@ -311,7 +311,17 @@ export class InfraStack extends Stack {
     });
   }
 
-  private static getCfnInitElement(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
+  private static constructCloudFormationInit(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): CloudFormationInit {
+    if (props.distributionUrl.includes('opensearch')) {
+      return CloudFormationInit.fromElements(...this.getCfnInitElementOpenSearch(scope, logGroup, props, nodeType));
+    }
+    if (props.distributionUrl.includes('elasticsearch')) {
+      return CloudFormationInit.fromElements(...this.getCfnInitElementElasticsearch(scope, logGroup, props, nodeType));
+    }
+    throw new Error(`Provided distributionUrl: ${props.distributionUrl} was not detected to be an OS or ES OSS distribution`);
+  }
+
+  private static getCfnInitElementOpenSearch(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
     const configFileDir = join(__dirname, '../opensearch-config');
     let opensearchConfig: string;
 
@@ -330,7 +340,7 @@ export class InfraStack extends Stack {
               cpu: {
                 measurement: [
                   // eslint-disable-next-line max-len
-                  'usage_active', 'usage_guest', 'usage_guest_nice', 'usage_idle', 'usage_iowait', 'usage_irq', 'usage_nice', 'usage_softirq', 'usage_steal', 'usage_system', 'usage_user', 'time_active', 'time_iowait', 'time_system', 'time_user'
+                  'usage_active', 'usage_guest', 'usage_guest_nice', 'usage_idle', 'usage_iowait', 'usage_irq', 'usage_nice', 'usage_softirq', 'usage_steal', 'usage_system', 'usage_user', 'time_active', 'time_iowait', 'time_system', 'time_user',
                 ],
               },
               disk: {
@@ -488,6 +498,160 @@ export class InfraStack extends Stack {
 
     cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd opensearch-dashboards;'
         + 'sudo -u ec2-user nohup ./bin/opensearch-dashboards > dashboard_install.log 2>&1 &', {
+      cwd: '/home/ec2-user',
+      ignoreErrors: false,
+    }));
+
+    return cfnInitConfig;
+  }
+
+  private static getCfnInitElementElasticsearch(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
+    const configFileDir = join(__dirname, '../opensearch-config');
+    let opensearchConfig: string;
+
+    const cfnInitConfig : InitElement[] = [
+      InitPackage.yum('amazon-cloudwatch-agent'),
+      CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
+        {
+          agent: {
+            metrics_collection_interval: 60,
+            logfile: '/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log',
+            omit_hostname: true,
+            debug: false,
+          },
+          metrics: {
+            metrics_collected: {
+              cpu: {
+                measurement: [
+                  // eslint-disable-next-line max-len
+                  'usage_active', 'usage_guest', 'usage_guest_nice', 'usage_idle', 'usage_iowait', 'usage_irq', 'usage_nice', 'usage_softirq', 'usage_steal', 'usage_system', 'usage_user', 'time_active', 'time_iowait', 'time_system', 'time_user',
+                ],
+              },
+              disk: {
+                measurement: [
+                  'free', 'total', 'used', 'used_percent', 'inodes_free', 'inodes_used', 'inodes_total',
+                ],
+              },
+              diskio: {
+                measurement: [
+                  'reads', 'writes', 'read_bytes', 'write_bytes', 'read_time', 'write_time', 'io_time',
+                ],
+              },
+              mem: {
+                measurement: [
+                  'active', 'available', 'available_percent', 'buffered', 'cached', 'free', 'inactive', 'total', 'used', 'used_percent',
+                ],
+              },
+              net: {
+                measurement: [
+                  'bytes_sent', 'bytes_recv', 'drop_in', 'drop_out', 'err_in', 'err_out', 'packets_sent', 'packets_recv',
+                ],
+              },
+            },
+          },
+          logs: {
+            logs_collected: {
+              files: {
+                collect_list: [
+                  {
+                    file_path: `/home/ec2-user/elasticsearch/logs/${scope.stackName}-${scope.account}-${scope.region}.log`,
+                    log_group_name: `${logGroup.logGroupName.toString()}`,
+                    // eslint-disable-next-line no-template-curly-in-string
+                    log_stream_name: '{instance_id}',
+                    auto_removal: true,
+                  },
+                ],
+              },
+            },
+            force_flush_interval: 5,
+          },
+        }),
+      InitCommand.shellCommand('set -ex;/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a stop'),
+      // eslint-disable-next-line max-len
+      InitCommand.shellCommand('set -ex;/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s'),
+      InitCommand.shellCommand('set -ex; sudo echo "vm.max_map_count=262144" >> /etc/sysctl.conf;sudo sysctl -p'),
+      // Fetch and unpack Elasticsearch tarball
+      InitCommand.shellCommand(`set -ex;mkdir elasticsearch; curl -L ${props.distributionUrl} -o elasticsearch.tar.gz;`
+          + 'tar zxf elasticsearch.tar.gz -C elasticsearch --strip-components=1; chown -R ec2-user:ec2-user elasticsearch;', {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }),
+      // Fetch and unpack Kibana tarball
+      InitCommand.shellCommand(`set -ex;mkdir kibana; curl -L ${props.dashboardsUrl} -o kibana.tar.gz;`
+          + 'tar zxf kibana.tar.gz -C kibana --strip-components=1; chown -R ec2-user:ec2-user kibana;', {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }),
+      InitCommand.shellCommand('sleep 15'),
+    ];
+
+    cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;echo "server.host: 0.0.0.0" >> config/kibana.yml',
+      {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+
+    // Add elasticsearch.yml config
+    if (props.singleNodeCluster) {
+      const fileContent: any = load(readFileSync(`${configFileDir}/single-node-base-config.yml`, 'utf-8'));
+
+      fileContent['cluster.name'] = `${scope.stackName}-${scope.account}-${scope.region}`;
+
+      console.log(dump(fileContent).toString());
+      opensearchConfig = dump(fileContent).toString();
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${opensearchConfig}" > config/elasticsearch.yml`,
+        {
+          cwd: '/home/ec2-user',
+        }));
+    } else {
+      const baseConfig: any = load(readFileSync(`${configFileDir}/multi-node-base-config.yml`, 'utf-8'));
+
+      baseConfig['cluster.name'] = `${scope.stackName}-${scope.account}-${scope.region}`;
+      const commonConfig = dump(baseConfig).toString();
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${commonConfig}" > config/elasticsearch.yml`,
+        {
+          cwd: '/home/ec2-user',
+        }));
+
+      if (nodeType != null) {
+        const nodeTypeConfig = nodeConfig.get(nodeType);
+        const nodeConfigData = dump(nodeTypeConfig).toString();
+        cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${nodeConfigData}" >> config/elasticsearch.yml`,
+          {
+            cwd: '/home/ec2-user',
+          }));
+      }
+
+      // Install EC2 discovery plugin
+      cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd elasticsearch; echo "y"|sudo -u ec2-user bin/elasticsearch-plugin install discovery-ec2', {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+    }
+
+    // Check if there are any jvm properties being passed
+    // @ts-ignore
+    if (props.jvmSysPropsString.toString() !== 'undefined') {
+      // @ts-ignore
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex; cd elasticsearch; jvmSysPropsList=$(echo "${props.jvmSysPropsString.toString()}" | tr ',' '\\n');`
+          + 'for sysProp in $jvmSysPropsList;do echo "-D$sysProp" >> config/jvm.options;done',
+      {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+    }
+
+    // Final run command for node, there does not seem to be a concept of a min distribution for ES OSS versions so no distinction
+    // is seen here for the run command as with OS versions
+    cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd elasticsearch; sudo -u ec2-user nohup ./bin/elasticsearch >> install.log 2>&1 &',
+      {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+
+    // Final run command for kibana dashboards
+    cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;'
+        + 'sudo -u ec2-user nohup ./bin/kibana > dashboard_install.log 2>&1 &', {
       cwd: '/home/ec2-user',
       ignoreErrors: false,
     }));
