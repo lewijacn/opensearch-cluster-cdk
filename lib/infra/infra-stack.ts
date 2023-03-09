@@ -232,7 +232,7 @@ export class InfraStack extends Stack {
           },
           signals: Signals.waitForAll(),
         });
-        Tags.of(clientNodeAsg).add('cluster', scope.stackName);
+        Tags.of(clientNodeAsg).add('cluster', 'test-stack');
       }
 
       Tags.of(clientNodeAsg).add('role', 'client');
@@ -576,20 +576,25 @@ export class InfraStack extends Stack {
         cwd: '/home/ec2-user',
         ignoreErrors: false,
       }),
-      // Fetch and unpack Kibana tarball
-      InitCommand.shellCommand(`set -ex;mkdir kibana; curl -L ${props.dashboardsUrl} -o kibana.tar.gz;`
-          + 'tar zxf kibana.tar.gz -C kibana --strip-components=1; chown -R ec2-user:ec2-user kibana;', {
-        cwd: '/home/ec2-user',
-        ignoreErrors: false,
-      }),
       InitCommand.shellCommand('sleep 15'),
     ];
 
-    cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;echo "server.host: 0.0.0.0" >> config/kibana.yml',
-      {
+    if (props.dashboardsUrl) {
+      // Remove sleep command until after Kibana unpack command
+      cfnInitConfig.pop();
+      // Fetch and unpack Kibana tarball
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex;mkdir kibana; curl -L ${props.dashboardsUrl} -o kibana.tar.gz;`
+          + 'tar zxf kibana.tar.gz -C kibana --strip-components=1; chown -R ec2-user:ec2-user kibana;', {
         cwd: '/home/ec2-user',
         ignoreErrors: false,
       }));
+      cfnInitConfig.push(InitCommand.shellCommand('sleep 15'));
+      cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;echo "server.host: 0.0.0.0" >> config/kibana.yml',
+        {
+          cwd: '/home/ec2-user',
+          ignoreErrors: false,
+        }));
+    }
 
     // Add elasticsearch.yml config
     if (props.singleNodeCluster) {
@@ -650,11 +655,13 @@ export class InfraStack extends Stack {
       }));
 
     // Final run command for kibana dashboards
-    cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;'
-        + 'sudo -u ec2-user nohup ./bin/kibana > dashboard_install.log 2>&1 &', {
-      cwd: '/home/ec2-user',
-      ignoreErrors: false,
-    }));
+    if (props.dashboardsUrl) {
+      cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd kibana;'
+          + 'sudo -u ec2-user nohup ./bin/kibana > dashboard_install.log 2>&1 &', {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+    }
 
     return cfnInitConfig;
   }
