@@ -61,9 +61,11 @@ export class OsClusterEntrypoint {
         throw new Error('distributionUrl parameter is required. Please provide the artifact url to download');
       }
 
-      const dashboardUrl = `${scope.node.tryGetContext('dashboardsUrl')}`;
+      // Allow no dashboard deployments
+      let dashboardUrl = `${scope.node.tryGetContext('dashboardsUrl')}`;
       if (dashboardUrl.toString() === 'undefined') {
-        throw new Error('dashboardsUrl parameter is required. Please provide the artifact url to download');
+        dashboardUrl = '';
+        // throw new Error('dashboardsUrl parameter is required. Please provide the artifact url to download');
       }
 
       const cpuArch = `${scope.node.tryGetContext('cpuArch')}`;
@@ -122,7 +124,7 @@ export class OsClusterEntrypoint {
 
       const network = new NetworkStack(scope, 'OpenSearch-Network-Stack', {
         cidrBlock: cidrRange,
-        maxAzs: 3,
+        maxAzs: 1,
         vpcId,
         securityGroupId,
         serverAccessType,

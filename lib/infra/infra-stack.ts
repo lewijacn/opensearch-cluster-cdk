@@ -69,6 +69,12 @@ export class InfraStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    const loggingPluginLogGroup = new LogGroup(this, 'loggingPluginLogGroup', {
+      logGroupName: 'opensearchLogGroup/loggingPlugin.log',
+      retention: RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
     const instanceRole = new Role(this, 'instanceRole', {
       managedPolicies: [ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ReadOnlyAccess'),
         ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
@@ -511,6 +517,8 @@ export class InfraStack extends Stack {
 
     const cfnInitConfig : InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
+      // For logging plugin
+      InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
@@ -560,6 +568,12 @@ export class InfraStack extends Stack {
                     log_stream_name: '{instance_id}',
                     auto_removal: true,
                   },
+                  {
+                    file_path: '/httpTraceLogs/http_trace.log',
+                    log_group_name: 'opensearchLogGroup/loggingPlugin.log',
+                    log_stream_name: '{instance_id}',
+                    auto_removal: true,
+                  },
                 ],
               },
             },
@@ -576,6 +590,17 @@ export class InfraStack extends Stack {
         cwd: '/home/ec2-user',
         ignoreErrors: false,
       }),
+      // Logging plugin setup
+      // eslint-disable-next-line max-len
+      InitCommand.shellCommand('set -ex; cd /home/ec2-user; git clone https://github.com/lewijacn/opensearch-migrations.git; cd opensearch-migrations; git checkout add-gradle-task'),
+      // InitCommand.shellCommand('set -ex; chown -R ec2-user:ec2-user /home/ec2-user/opensearch-migrations'),
+      // eslint-disable-next-line max-len
+      InitCommand.shellCommand('set -ex; export JAVA_HOME=/home/ec2-user/elasticsearch/jdk; cd /home/ec2-user/opensearch-migrations/plugins/elasticsearch/loggable-transport-netty4; ./gradlew assemble'),
+      // eslint-disable-next-line max-len
+      InitCommand.shellCommand('set -ex; cd /home/ec2-user/opensearch-migrations/cluster_traffic_capture/elasticsearch_with_loggging; cp log4j2.properties /home/ec2-user/elasticsearch/config/'),
+      InitCommand.shellCommand('set -ex; sudo mkdir /httpTraceLogs; sudo chown ec2-user /httpTraceLogs'),
+      // eslint-disable-next-line max-len
+      InitCommand.shellCommand('set -ex; cd /home/ec2-user; ./elasticsearch/bin/elasticsearch-plugin install file:/home/ec2-user/opensearch-migrations/plugins/elasticsearch/loggable-transport-netty4/build/distributions/LoggableNetty4-7.10.2.zip'),
       InitCommand.shellCommand('sleep 15'),
     ];
 

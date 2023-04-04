@@ -1,0 +1,11 @@
+{
+  "securityDisabled": true,
+  "minDistribution": false,
+  "distributionUrl": "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-7.10.2-linux-x86_64.tar.gz",
+  "cpuArch": "x64",
+  "singleNodeCluster": true,
+  "dataNodeCount": 1,
+  "distVersion": "7.10.2",
+  "serverAccessType": "ipv4",
+  "restrictServerAccessTo": "0.0.0.0/0"
+}
