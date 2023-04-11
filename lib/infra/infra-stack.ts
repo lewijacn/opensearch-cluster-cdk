@@ -592,7 +592,7 @@ export class InfraStack extends Stack {
       }),
       // Logging plugin setup
       // eslint-disable-next-line max-len
-      InitCommand.shellCommand('set -ex; cd /home/ec2-user; git clone https://github.com/lewijacn/opensearch-migrations.git; cd opensearch-migrations; git checkout add-gradle-task'),
+      InitCommand.shellCommand('set -ex; cd /home/ec2-user; git clone https://github.com/opensearch-project/opensearch-migrations.git'),
       // InitCommand.shellCommand('set -ex; chown -R ec2-user:ec2-user /home/ec2-user/opensearch-migrations'),
       // eslint-disable-next-line max-len
       InitCommand.shellCommand('set -ex; export JAVA_HOME=/home/ec2-user/elasticsearch/jdk; cd /home/ec2-user/opensearch-migrations/plugins/elasticsearch/loggable-transport-netty4; ./gradlew assemble'),
