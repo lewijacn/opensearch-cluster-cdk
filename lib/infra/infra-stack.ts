@@ -414,8 +414,8 @@ export class InfraStack extends Stack {
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      InitPackage.yum('java-11-amazon-corretto'),
-      InitPackage.yum('git'),
+      // InitPackage.yum('java-11-amazon-corretto'),
+      // InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
