@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 usage() {
   echo ""
   echo "Restarts ES node with port 19200 and start capture proxy on port 9200"
@@ -56,6 +54,7 @@ KAFKA_ENDPOINTS=$(echo "$KAFKA_ENDPOINTS" | tr '@' ',')
 
 ./buildCaptureProxy.sh "$GIT_URL" "$GIT_BRANCH"
 
+set -e
 es_pid=$(pgrep -f "bin/elasticsearch" || echo "")
 if [ -z "$es_pid" ]; then
   echo "No running Elasticsearch process detected"
