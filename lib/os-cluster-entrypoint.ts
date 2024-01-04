@@ -102,7 +102,7 @@ export class OsClusterEntrypoint {
         throw new Error('captureProxyEnabled parameter is required to be set as - true or false');
       }
       const captureProxy = captureProxyEnabled === 'true';
-      const captureProxyTarUrl = `${scope.node.tryGetContext('captureProxyTarUrl')}`;
+      const captureProxyTarUrl = scope.node.tryGetContext('captureProxyTarUrl');
 
       const dashboardUrl = `${scope.node.tryGetContext('dashboardsUrl')}`;
 

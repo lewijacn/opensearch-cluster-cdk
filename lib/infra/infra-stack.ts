@@ -54,7 +54,7 @@ export interface infraProps extends StackProps {
   readonly minDistribution: boolean,
   readonly distributionUrl: string,
   readonly captureProxyEnabled: string,
-  readonly captureProxyTarUrl: string,
+  readonly captureProxyTarUrl?: string,
   readonly dashboardsUrl: string,
   readonly singleNodeCluster: boolean,
   readonly managerNodeCount: number,
@@ -414,8 +414,8 @@ export class InfraStack extends Stack {
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      // InitPackage.yum('java-11-amazon-corretto'),
-      // InitPackage.yum('git'),
+      InitPackage.yum('java-11-amazon-corretto'),
+      InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
@@ -647,10 +647,10 @@ export class InfraStack extends Stack {
       });
       cfnInitConfig.push(startProxyFile);
 
-      // const buildProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/buildCaptureProxy.sh', './buildCaptureProxy.sh', {
-      //   mode: '000744',
-      // });
-      // cfnInitConfig.push(buildProxyFile);
+      const buildProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/buildCaptureProxy.sh', './buildCaptureProxy.sh', {
+        mode: '000744',
+      });
+      cfnInitConfig.push(buildProxyFile);
     }
 
     // If OpenSearch-Dashboards URL is present
