@@ -103,9 +103,6 @@ export class OsClusterEntrypoint {
       }
       const captureProxy = captureProxyEnabled === 'true';
       const captureProxyTarUrl = `${scope.node.tryGetContext('captureProxyTarUrl')}`;
-      if (captureProxy && captureProxyTarUrl.toString() === 'undefined') {
-        throw new Error('captureProxyTarUrl parameter is required. Please provide the capture proxy tar url to download');
-      }
 
       const dashboardUrl = `${scope.node.tryGetContext('dashboardsUrl')}`;
 

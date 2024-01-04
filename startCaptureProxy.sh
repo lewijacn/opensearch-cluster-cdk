@@ -7,10 +7,12 @@ usage() {
   echo "Restarts ES node with port 19200 and start capture proxy on port 9200"
   echo ""
   echo "Usage: "
-  echo "  ./startCaptureProxy.sh <--kafka-endpoints STRING>"
+  echo "  ./startCaptureProxy.sh <--kafka-endpoints STRING> <--git-url STRING> <--git-branch STRING>"
   echo ""
   echo "Options:"
-  echo "  --kafka-endpoints                     Kafka broker endpoints that captured traffic will be sent to e.g. 'broker1:9092,broker2:9092'."
+  echo "  --kafka-endpoints                     Kafka broker endpoints that captured traffic will be sent to, e.g. 'broker1:9092,broker2:9092'."
+  echo "  --git-url                             The Github http url used to pull the trafficCaptureProxyServer for building, e.g. 'https://github.com/opensearch-project/opensearch-migrations.git'."
+  echo "  --git-branch                          The Github branch associated with the 'git-url' to pull from, e.g. 'main'."
   echo ""
   exit 1
 }
@@ -19,6 +21,16 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --kafka-endpoints)
       KAFKA_ENDPOINTS="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --git-url)
+      GIT_URL="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --git-branch)
+      GIT_BRANCH="$2"
       shift # past argument
       shift # past value
       ;;
@@ -35,12 +47,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "$KAFKA_ENDPOINTS" ]; then
-  echo "Required --kafka-endpoints argument is missing"
+if [ -z "$KAFKA_ENDPOINTS" ] ||  [ -z "$GIT_URL" ] || [ -z "$GIT_BRANCH" ]; then
+  echo "At least one required argument is missing [--kafka-endpoints, --git-url, --git-branch]"
   exit 1
 fi
 # Allow @ to be used instead of ',' for cases where ',' would disrupt formatting of arguments, i.e. AWS SSM commands
 KAFKA_ENDPOINTS=$(echo "$KAFKA_ENDPOINTS" | tr '@' ',')
+
+./buildCaptureProxy.sh "$GIT_URL" "$GIT_BRANCH"
 
 es_pid=$(pgrep -f "bin/elasticsearch" || echo "")
 if [ -z "$es_pid" ]; then
@@ -79,11 +93,13 @@ fi
 cd /home/ec2-user/elasticsearch
 if [ -z "$es_pid" ]; then
   echo "Starting Elasticsearch process"
-  sudo -u ec2-user nohup ./bin/elasticsearch &
+  # Running nohup from an AWS SSM command without redirecting the I/O will causing hanging: https://en.wikipedia.org/wiki/Nohup#Overcoming_hanging
+  sudo -u ec2-user nohup ./bin/elasticsearch >/dev/null 2>&1 &
 elif [ "$es_needs_restart" = true ]; then
   echo "Restarting Elasticsearch process"
   kill "$es_pid"
-  sudo -u ec2-user nohup ./bin/elasticsearch &
+  # Running nohup from an AWS SSM command without redirecting the I/O will causing hanging: https://en.wikipedia.org/wiki/Nohup#Overcoming_hanging
+  sudo -u ec2-user nohup ./bin/elasticsearch >/dev/null 2>&1 &
 fi
 
 export JAVA_HOME=/home/ec2-user/elasticsearch/jdk
@@ -93,7 +109,8 @@ if [ -n "$capture_pid" ]; then
   kill "$capture_pid"
 fi
 echo "Starting Capture Proxy process"
-nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --listenPort 9200 --enableMSKAuth --insecureDestination &
+# Running nohup from an AWS SSM command without redirecting the I/O will causing hanging: https://en.wikipedia.org/wiki/Nohup#Overcoming_hanging
+nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --listenPort 9200 --enableMSKAuth --insecureDestination >/dev/null 2>&1 &
 
 sleep 5
 capture_pid_verify=$(pgrep -f "trafficCaptureProxyServer" || echo "")

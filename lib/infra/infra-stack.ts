@@ -414,6 +414,8 @@ export class InfraStack extends Stack {
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
+      InitPackage.yum('java-11-amazon-corretto'),
+      InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
@@ -629,19 +631,26 @@ export class InfraStack extends Stack {
         ignoreErrors: false,
       }));
 
-    // Download and unpack capture proxy as well as add capture proxy startup script. Currently, places capture proxy required files
-    // on all nodes but only Coordinator nodes need
+    // If captureProxyTarUrl is provided then download and unpack capture proxy, otherwise require users to execute buildCaptureProxy.sh script for setup.
+    // Currently, places capture proxy required files on all nodes but only Coordinator nodes need
     if (props.captureProxyEnabled) {
-      // eslint-disable-next-line max-len
-      cfnInitConfig.push(InitCommand.shellCommand(`set -ex; curl -L0 ${props.captureProxyTarUrl} --output CaptureProxyX64.tar.gz; tar -xvf CaptureProxyX64.tar.gz;`,
-        {
-          cwd: '/home/ec2-user/capture-proxy',
-          ignoreErrors: false,
-        }));
+      if (props.captureProxyTarUrl) {
+        // eslint-disable-next-line max-len
+        cfnInitConfig.push(InitCommand.shellCommand(`set -ex; curl -L0 ${props.captureProxyTarUrl} --output CaptureProxyX64.tar.gz; tar -xvf CaptureProxyX64.tar.gz;`,
+          {
+            cwd: '/home/ec2-user/capture-proxy',
+            ignoreErrors: false,
+          }));
+      }
       const startProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/startCaptureProxy.sh', './startCaptureProxy.sh', {
         mode: '000744',
       });
       cfnInitConfig.push(startProxyFile);
+
+      const buildProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/buildCaptureProxy.sh', './buildCaptureProxy.sh', {
+        mode: '000744',
+      });
+      cfnInitConfig.push(buildProxyFile);
     }
 
     // If OpenSearch-Dashboards URL is present
