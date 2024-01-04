@@ -647,10 +647,10 @@ export class InfraStack extends Stack {
       });
       cfnInitConfig.push(startProxyFile);
 
-      const buildProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/buildCaptureProxy.sh', './buildCaptureProxy.sh', {
-        mode: '000744',
-      });
-      cfnInitConfig.push(buildProxyFile);
+      // const buildProxyFile = InitFile.fromFileInline('/home/ec2-user/capture-proxy/buildCaptureProxy.sh', './buildCaptureProxy.sh', {
+      //   mode: '000744',
+      // });
+      // cfnInitConfig.push(buildProxyFile);
     }
 
     // If OpenSearch-Dashboards URL is present

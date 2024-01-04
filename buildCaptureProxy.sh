@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Example usage: ./buildCaptureProxy.sh https://github.com/opensearch-project/opensearch-migrations.git main
 
 git_http_url=$1
