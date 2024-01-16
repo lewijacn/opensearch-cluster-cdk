@@ -6,12 +6,6 @@ git_http_url=$1
 branch=$2
 export JAVA_HOME=/home/ec2-user/elasticsearch/jdk
 
-if [ -d "/home/ec2-user/capture-proxy/trafficCaptureProxyServer" ]; then
-  # TODO allow option to force a build
-  echo "The trafficCaptureProxyServer directory already exists, skipping build."
-  exit 1
-fi
-
 mkdir -p /home/ec2-user/capture-proxy/opensearch-migrations
 cd /home/ec2-user/capture-proxy/opensearch-migrations || exit
 git init
@@ -41,9 +35,29 @@ fi
 
 git pull origin "$branch"
 cd TrafficCapture || exit
-./gradlew build -p trafficCaptureProxyServer
+./gradlew build -p trafficCaptureProxyServer -x test
 
-cd /home/ec2-user/capture-proxy || exit
-cp /home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer.zip /home/ec2-user/capture-proxy
-unzip trafficCaptureProxyServer.zip
-rm trafficCaptureProxyServer.zip
+dist_age_seconds=$(( `date +%s` - `stat -L --format %Y "/home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer.zip"` ))
+echo "Capture Proxy distribution was created $dist_age_seconds seconds ago"
+proxy_needs_restart=false
+if [ "$dist_age_seconds" -lt 60 ]; then
+   echo "Capture Proxy required an updated distribution, kicking off Capture Proxy restart"
+   proxy_needs_restart=true
+fi
+
+if [ "$proxy_needs_restart" = true ]; then
+  capture_pid=$(pgrep -f "trafficCaptureProxyServer" || echo "")
+  if [ -n "$capture_pid" ]; then
+    echo "Stopping running Capture Proxy process"
+    kill "$capture_pid"
+  fi
+  if [ -d "/home/ec2-user/capture-proxy/trafficCaptureProxyServer" ]; then
+    echo "Removing existing trafficCaptureProxyServer directory."
+    rm -rf "/home/ec2-user/capture-proxy/trafficCaptureProxyServer"
+  fi
+
+  cd /home/ec2-user/capture-proxy || exit
+  cp /home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer.zip /home/ec2-user/capture-proxy
+  unzip -o trafficCaptureProxyServer.zip
+  rm trafficCaptureProxyServer.zip
+fi
