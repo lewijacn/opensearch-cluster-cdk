@@ -41,7 +41,7 @@ dist_age_seconds=$(( `date +%s` - `stat -L --format %Y "/home/ec2-user/capture-p
 echo "Capture Proxy distribution was created $dist_age_seconds seconds ago"
 proxy_needs_restart=false
 if [ "$dist_age_seconds" -lt 60 ]; then
-   echo "Capture Proxy required an updated distribution, kicking off Capture Proxy restart"
+   echo "Capture Proxy required an updated distribution. Stopping Capture Proxy, if running, for a restart"
    proxy_needs_restart=true
 fi
 
