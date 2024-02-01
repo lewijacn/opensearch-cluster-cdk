@@ -11,6 +11,7 @@ usage() {
   echo "  --kafka-endpoints                     Kafka broker endpoints that captured traffic will be sent to, e.g. 'broker1:9092,broker2:9092'."
   echo "  --git-url                             The Github http url used to pull the trafficCaptureProxyServer for building, e.g. 'https://github.com/opensearch-project/opensearch-migrations.git'."
   echo "  --git-branch                          The Github branch associated with the 'git-url' to pull from, e.g. 'main'."
+  echo "  --stage                               The deployment stage used for the associated OpenSearch Migrations CDK deployment"
   echo ""
   exit 1
 }
@@ -32,6 +33,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    --stage)
+      STAGE="$2"
+      shift # past argument
+      shift # past value
+      ;;
     -h|--help)
       usage
       ;;
@@ -45,8 +51,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "$KAFKA_ENDPOINTS" ] ||  [ -z "$GIT_URL" ] || [ -z "$GIT_BRANCH" ]; then
-  echo "At least one required argument is missing [--kafka-endpoints, --git-url, --git-branch]"
+if [ -z "$KAFKA_ENDPOINTS" ] ||  [ -z "$GIT_URL" ] || [ -z "$GIT_BRANCH" ] || [ -z "$STAGE" ]; then
+  echo "At least one required argument is missing [--kafka-endpoints, --git-url, --git-branch, --stage]"
   exit 1
 fi
 # Allow @ to be used instead of ',' for cases where ',' would disrupt formatting of arguments, i.e. AWS SSM commands
@@ -110,7 +116,7 @@ fi
 echo "Starting Capture Proxy process"
 # Running nohup from an AWS SSM command without redirecting the I/O will causing hanging: https://en.wikipedia.org/wiki/Nohup#Overcoming_hanging
 # Suppressing incoming traffic with User-Agent header containing 'elastic-java/7.10.0' to prevent capturing requests from Data Prepper requests during a Fetch Migration
-nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --suppressCaptureForHeaderMatch "user-agent" ".*elastic-java/7.17.0.*"  --listenPort 9200 --enableMSKAuth --insecureDestination >/dev/null 2>&1 &
+nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --otelCollectorEndpoint "http://otel-collector.migration.$STAGE.local:4317" --suppressCaptureForHeaderMatch "user-agent" ".*elastic-java/7.17.0.*"  --listenPort 9200 --enableMSKAuth --insecureDestination >/dev/null 2>&1 &
 
 sleep 5
 capture_pid_verify=$(pgrep -f "trafficCaptureProxyServer" || echo "")
