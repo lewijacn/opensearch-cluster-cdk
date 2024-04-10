@@ -173,7 +173,6 @@ export class InfraStack extends Stack {
       crossZoneEnabled: true,
     });
 
-
     opensearchListener = nlb.addListener('elasticsearch9200', {
       port: 9200,
       protocol: Protocol.TCP,
@@ -182,7 +181,6 @@ export class InfraStack extends Stack {
       port: 19200,
       protocol: Protocol.TCP,
     });
-
 
     if (props.dashboardsUrl !== 'undefined') {
       dashboardsListener = nlb.addListener('dashboards', {
@@ -503,6 +501,11 @@ export class InfraStack extends Stack {
         ignoreErrors: false,
       }),
       InitCommand.shellCommand('sleep 15'),
+      // Install S3 repository plugin, for use by RFS
+      InitCommand.shellCommand('set -ex;cd elasticsearch/bin; echo y | ./elasticsearch-plugin install repository-s3',
+        {
+          cwd: '/home/ec2-user',
+        }),
     ];
 
     // Add elasticsearch.yml config
@@ -531,12 +534,6 @@ export class InfraStack extends Stack {
 
       const commonConfig = dump(baseConfig).toString();
       cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${commonConfig}" > config/elasticsearch.yml`,
-        {
-          cwd: '/home/ec2-user',
-        }));
-
-      // Install S3 repository plugin, for use by RFS
-      cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd elasticsearch/bin; echo y | ./elasticsearch-plugin install repository-s3',
         {
           cwd: '/home/ec2-user',
         }));
