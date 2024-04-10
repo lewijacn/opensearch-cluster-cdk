@@ -102,6 +102,19 @@ export class InfraStack extends Stack {
     role.addToPolicy(mskTopicProducerPolicy);
   }
 
+  addS3SnapshotBucketIAMPolicies(role: Role) {
+    const s3BucketPath = `arn:aws:s3:::migration-artifacts-${this.account}-*`;
+    const s3AnyObjectPath = `${s3BucketPath}/*`;
+    const s3PublishPolicy = new PolicyStatement({
+      effect: Effect.ALLOW,
+      resources: [s3BucketPath, s3AnyObjectPath],
+      actions: [
+        's3:*',
+      ],
+    });
+    role.addToPolicy(s3PublishPolicy);
+  }
+
   constructor(scope: Stack, id: string, props: infraProps) {
     super(scope, id, props);
     let opensearchListener: NetworkListener;
@@ -132,6 +145,7 @@ export class InfraStack extends Stack {
     }
     if (props.captureProxyEnabled) {
       this.addKafkaProducerIAMPolicies(this.instanceRole);
+      this.addS3SnapshotBucketIAMPolicies(this.instanceRole);
     }
 
     if (props.enableRemoteStore) {
@@ -517,6 +531,12 @@ export class InfraStack extends Stack {
 
       const commonConfig = dump(baseConfig).toString();
       cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${commonConfig}" > config/elasticsearch.yml`,
+        {
+          cwd: '/home/ec2-user',
+        }));
+
+      // Install S3 repository plugin, for use by RFS
+      cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd elasticsearch/bin; echo y | ./elasticsearch-plugin install repository-s3',
         {
           cwd: '/home/ec2-user',
         }));
