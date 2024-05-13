@@ -15,6 +15,7 @@ import {
 } from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
 import { dump } from 'js-yaml';
+import { readFileSync } from 'fs';
 import { InfraStack } from './infra/infra-stack';
 import { NetworkStack } from './networking/vpc-stack';
 import {
@@ -29,6 +30,27 @@ enum cpuArchEnum{
     X64='x64',
     ARM64='arm64'
 }
+
+const getContextJSONFromFile = (contextFile: string|undefined, contextId: string|undefined) => {
+  if (contextFile && contextId) {
+    const fileString = readFileSync(contextFile, 'utf-8');
+    const fileJSON = JSON.parse(fileString);
+    const contextBlock = fileJSON[contextId];
+    if (!contextBlock) {
+      throw new Error(`No CDK context block found for contextId '${contextId}' in file ${contextFile}`);
+    }
+    return contextBlock;
+  }
+  return undefined;
+};
+
+const getContext = (scope: Construct, contextJSON: string|undefined, optionName: string, enforceString = true) => {
+  if (contextJSON === undefined) {
+    return enforceString ? `${scope.node.tryGetContext(optionName)}` : scope.node.tryGetContext(optionName);
+  }
+  // @ts-ignore
+  return enforceString ? `${contextJSON[optionName]}` : contextJSON[optionName];
+};
 
 const getInstanceType = (instanceType: string, arch: string) => {
   if (arch === 'x64') {
@@ -67,49 +89,56 @@ export class OsClusterEntrypoint {
       let mlEc2InstanceType: InstanceType;
       let volumeType: EbsDeviceVolumeType;
 
+      const contextFile = scope.node.tryGetContext('contextFile');
+      const contextId = scope.node.tryGetContext('contextId');
+      if ((contextFile && !contextId) || (!contextFile && contextId)) {
+        throw new Error('The following context parameters are all required when in use: [contextFile, contextId]');
+      }
+      const jsonFileContext = getContextJSONFromFile(contextFile, contextId);
+
       const x64InstanceTypes: string[] = Object.keys(x64Ec2InstanceType);
       const arm64InstanceTypes: string[] = Object.keys(arm64Ec2InstanceType);
-      const vpcId: string = scope.node.tryGetContext('vpcId');
-      const securityGroupId = scope.node.tryGetContext('securityGroupId');
-      const cidrRange = scope.node.tryGetContext('cidr');
-      const restrictServerAccessTo = scope.node.tryGetContext('restrictServerAccessTo');
-      const serverAccessType = scope.node.tryGetContext('serverAccessType');
+      const vpcId: string = getContext(scope, jsonFileContext, 'vpcId', false);
+      const securityGroupId = getContext(scope, jsonFileContext, 'securityGroupId', false);
+      const cidrRange = getContext(scope, jsonFileContext, 'cidr', false);
+      const restrictServerAccessTo = getContext(scope, jsonFileContext, 'restrictServerAccessTo', false);
+      const serverAccessType = getContext(scope, jsonFileContext, 'serverAccessType', false);
 
-      const distVersion = `${scope.node.tryGetContext('distVersion')}`;
+      const distVersion = getContext(scope, jsonFileContext, 'distVersion');
       if (distVersion.toString() === 'undefined') {
         throw new Error('Please provide the OS distribution version');
       }
 
-      const securityDisabled = `${scope.node.tryGetContext('securityDisabled')}`;
+      const securityDisabled = getContext(scope, jsonFileContext, 'securityDisabled');
       if (securityDisabled !== 'true' && securityDisabled !== 'false') {
         throw new Error('securityEnabled parameter is required to be set as - true or false');
       }
       const security = securityDisabled === 'true';
 
-      const minDistribution = `${scope.node.tryGetContext('minDistribution')}`;
+      const minDistribution = getContext(scope, jsonFileContext, 'minDistribution');
       if (minDistribution !== 'true' && minDistribution !== 'false') {
         throw new Error('minDistribution parameter is required to be set as - true or false');
       }
       const minDist = minDistribution === 'true';
 
-      const distributionUrl = `${scope.node.tryGetContext('distributionUrl')}`;
+      const distributionUrl = getContext(scope, jsonFileContext, 'distributionUrl');
       if (distributionUrl.toString() === 'undefined') {
         throw new Error('distributionUrl parameter is required. Please provide the artifact url to download');
       }
 
-      const captureProxyEnabled = `${scope.node.tryGetContext('captureProxyEnabled')}`;
+      const captureProxyEnabled = getContext(scope, jsonFileContext, 'captureProxyEnabled');
       if (captureProxyEnabled !== 'true' && captureProxyEnabled !== 'false') {
         throw new Error('captureProxyEnabled parameter is required to be set as - true or false');
       }
       const captureProxy = captureProxyEnabled === 'true';
-      const captureProxyTarUrl = scope.node.tryGetContext('captureProxyTarUrl');
+      const captureProxyTarUrl = getContext(scope, jsonFileContext, 'captureProxyTarUrl', false);
 
-      const dashboardUrl = `${scope.node.tryGetContext('dashboardsUrl')}`;
+      const dashboardUrl = getContext(scope, jsonFileContext, 'dashboardsUrl');
 
-      const cpuArch = `${scope.node.tryGetContext('cpuArch')}`;
+      const cpuArch = getContext(scope, jsonFileContext, 'cpuArch');
 
-      const dataInstanceType = `${scope.node.tryGetContext('dataInstanceType')}`;
-      const mlInstanceType = `${scope.node.tryGetContext('mlInstanceType')}`;
+      const dataInstanceType = getContext(scope, jsonFileContext, 'dataInstanceType');
+      const mlInstanceType = getContext(scope, jsonFileContext, 'mlInstanceType');
 
       if (cpuArch.toString() === 'undefined') {
         throw new Error('cpuArch parameter is required. The provided value should be either x64 or arm64, any other value is invalid');
@@ -128,52 +157,52 @@ export class OsClusterEntrypoint {
         throw new Error('Please provide a valid cpu architecture. The valid value can be either x64 or arm64');
       }
 
-      const singleNodeCluster = `${scope.node.tryGetContext('singleNodeCluster')}`;
+      const singleNodeCluster = getContext(scope, jsonFileContext, 'singleNodeCluster');
       const isSingleNode = singleNodeCluster === 'true';
 
-      const managerNodeCount = `${scope.node.tryGetContext('managerNodeCount')}`;
+      const managerNodeCount = getContext(scope, jsonFileContext, 'managerNodeCount');
       if (managerNodeCount.toString() === 'undefined') {
         managerCount = 3;
       } else {
         managerCount = parseInt(managerNodeCount, 10);
       }
 
-      const dataNodeCount = `${scope.node.tryGetContext('dataNodeCount')}`;
+      const dataNodeCount = getContext(scope, jsonFileContext, 'dataNodeCount');
       if (dataNodeCount.toString() === 'undefined') {
         dataCount = 2;
       } else {
         dataCount = parseInt(dataNodeCount, 10);
       }
 
-      const clientNodeCount = `${scope.node.tryGetContext('clientNodeCount')}`;
+      const clientNodeCount = getContext(scope, jsonFileContext, 'clientNodeCount');
       if (clientNodeCount.toString() === 'undefined') {
         clientCount = 0;
       } else {
         clientCount = parseInt(clientNodeCount, 10);
       }
 
-      const ingestNodeCount = `${scope.node.tryGetContext('ingestNodeCount')}`;
+      const ingestNodeCount = getContext(scope, jsonFileContext, 'ingestNodeCount');
       if (ingestNodeCount.toString() === 'undefined') {
         ingestCount = 0;
       } else {
         ingestCount = parseInt(clientNodeCount, 10);
       }
 
-      const mlNodeCount = `${scope.node.tryGetContext('mlNodeCount')}`;
+      const mlNodeCount = getContext(scope, jsonFileContext, 'mlNodeCount');
       if (mlNodeCount.toString() === 'undefined') {
         mlCount = 0;
       } else {
         mlCount = parseInt(mlNodeCount, 10);
       }
 
-      const dataSize = `${scope.node.tryGetContext('dataNodeStorage')}`;
+      const dataSize = getContext(scope, jsonFileContext, 'dataNodeStorage');
       if (dataSize === 'undefined') {
         dataNodeStorage = 100;
       } else {
         dataNodeStorage = parseInt(dataSize, 10);
       }
 
-      const inputVolumeType = `${scope.node.tryGetContext('storageVolumeType')}`;
+      const inputVolumeType = getContext(scope, jsonFileContext, 'storageVolumeType');
       if (inputVolumeType.toString() === 'undefined') {
         // use gp2 volume by default
         volumeType = getVolumeType('gp2');
@@ -181,16 +210,16 @@ export class OsClusterEntrypoint {
         volumeType = getVolumeType(inputVolumeType);
       }
 
-      const mlSize = `${scope.node.tryGetContext('mlNodeStorage')}`;
+      const mlSize = getContext(scope, jsonFileContext, 'mlNodeStorage');
       if (mlSize === 'undefined') {
         mlNodeStorage = 100;
       } else {
         mlNodeStorage = parseInt(mlSize, 10);
       }
 
-      const jvmSysProps = `${scope.node.tryGetContext('jvmSysProps')}`;
+      const jvmSysProps = getContext(scope, jsonFileContext, 'jvmSysProps');
 
-      const osConfig = `${scope.node.tryGetContext('additionalConfig')}`;
+      const osConfig = getContext(scope, jsonFileContext, 'additionalConfig');
       if (osConfig.toString() !== 'undefined') {
         try {
           const jsonObj = JSON.parse(osConfig);
@@ -200,7 +229,7 @@ export class OsClusterEntrypoint {
         }
       }
 
-      const osdConfig = `${scope.node.tryGetContext('additionalOsdConfig')}`;
+      const osdConfig = getContext(scope, jsonFileContext, 'additionalOsdConfig');
       if (osdConfig.toString() !== 'undefined') {
         try {
           const jsonObj = JSON.parse(osdConfig);
@@ -210,21 +239,21 @@ export class OsClusterEntrypoint {
         }
       }
 
-      const suffix = `${scope.node.tryGetContext('suffix')}`;
-      const networkStackSuffix = `${scope.node.tryGetContext('networkStackSuffix')}`;
+      const suffix = getContext(scope, jsonFileContext, 'suffix');
+      const networkStackSuffix = getContext(scope, jsonFileContext, 'networkStackSuffix');
 
-      const use50heap = `${scope.node.tryGetContext('use50PercentHeap')}`;
+      const use50heap = getContext(scope, jsonFileContext, 'use50PercentHeap');
       const use50PercentHeap = use50heap === 'true';
 
-      const nlbScheme = `${scope.node.tryGetContext('isInternal')}`;
+      const nlbScheme = getContext(scope, jsonFileContext, 'isInternal');
       const isInternal = nlbScheme === 'true';
 
-      const remoteStore = `${scope.node.tryGetContext('enableRemoteStore')}`;
+      const remoteStore = getContext(scope, jsonFileContext, 'enableRemoteStore');
       const enableRemoteStore = remoteStore === 'true';
 
-      const customRoleArn = `${scope.node.tryGetContext('customRoleArn')}`;
+      const customRoleArn = getContext(scope, jsonFileContext, 'customRoleArn');
 
-      const networkAvailabilityZones = `${scope.node.tryGetContext('networkAvailabilityZones')}`;
+      const networkAvailabilityZones = getContext(scope, jsonFileContext, 'networkAvailabilityZones');
       if (networkAvailabilityZones === 'undefined') {
         zoneCount = 3;
       } else {
