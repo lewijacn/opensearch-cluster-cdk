@@ -116,7 +116,7 @@ fi
 echo "Starting Capture Proxy process"
 # Running nohup from an AWS SSM command without redirecting the I/O will causing hanging: https://en.wikipedia.org/wiki/Nohup#Overcoming_hanging
 # Suppressing incoming traffic with User-Agent header containing 'elastic-java/7.10.0' to prevent capturing requests from Data Prepper requests during a Fetch Migration
-sudo -u ec2-user nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --otelCollectorEndpoint "http://otel-collector.migration.$STAGE.local:4317" --suppressCaptureForHeaderMatch "user-agent" ".*elastic-java/7.17.0.*"  --listenPort 9200 --enableMSKAuth --insecureDestination >/dev/null 2>&1 &
+sudo -u ec2-user nohup ./trafficCaptureProxyServer --kafkaConnection "$KAFKA_ENDPOINTS" --destinationUri http://localhost:19200 --suppressCaptureForHeaderMatch "user-agent" ".*elastic-java/7.17.0.*"  --listenPort 9200 --enableMSKAuth --insecureDestination >/dev/null 2>&1 &
 
 sleep 5
 capture_pid_verify=$(pgrep -f "trafficCaptureProxyServer" || echo "")
