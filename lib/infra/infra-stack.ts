@@ -145,8 +145,8 @@ export class InfraStack extends Stack {
     }
     if (props.captureProxyEnabled) {
       this.addKafkaProducerIAMPolicies(this.instanceRole);
-      this.addS3SnapshotBucketIAMPolicies(this.instanceRole);
     }
+    this.addS3SnapshotBucketIAMPolicies(this.instanceRole);
 
     if (props.enableRemoteStore) {
       // Remote Store needs an S3 bucket to be registered as snapshot repo
