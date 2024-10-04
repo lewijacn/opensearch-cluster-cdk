@@ -217,7 +217,7 @@ export class InfraStack extends Stack {
         initOptions: {
           ignoreFailures: false,
         },
-        requireImdsv2: true,
+        requireImdsv2: false
       });
       Tags.of(singleNodeInstance).add('role', 'client');
 
