@@ -217,6 +217,14 @@ export class OsClusterEntrypoint {
         mlNodeStorage = parseInt(mlSize, 10);
       }
 
+      // This setting only imposes a requirement that Imdsv2 be enabled for the single node EC2 instance or Auto
+      // Scaling Groups of the infra-stack. If disabled the EC2 instance will follow the order of precedence, as
+      // described here: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-options.html#instance-metadata-options-order-of-precedence,
+      // for whether it should enforce Imdsv2 or make it optional. The next place to check after the instance
+      // configuration is the account settings, which should allow both v1 and v2 if desired after disabling here.
+      const requireImdsv2Context = getContext(scope, jsonFileContext, 'requireImdsv2');
+      const requireImdsv2 = !(requireImdsv2Context === 'false');
+
       const jvmSysProps = getContext(scope, jsonFileContext, 'jvmSysProps');
 
       const osConfig = getContext(scope, jsonFileContext, 'additionalConfig');
@@ -319,6 +327,7 @@ export class OsClusterEntrypoint {
         enableRemoteStore,
         storageVolumeType: volumeType,
         customRoleArn,
+        requireImdsv2,
         ...props,
       });
 

@@ -73,7 +73,8 @@ export interface infraProps extends StackProps {
   readonly isInternal: boolean,
   readonly enableRemoteStore: boolean,
   readonly storageVolumeType: EbsDeviceVolumeType,
-  readonly customRoleArn: string
+  readonly customRoleArn: string,
+  readonly requireImdsv2: boolean,
 }
 
 export class InfraStack extends Stack {
@@ -217,7 +218,7 @@ export class InfraStack extends Stack {
         initOptions: {
           ignoreFailures: false,
         },
-        requireImdsv2: false
+        requireImdsv2: props.requireImdsv2,
       });
       Tags.of(singleNodeInstance).add('role', 'client');
 
@@ -273,7 +274,7 @@ export class InfraStack extends Stack {
           initOptions: {
             ignoreFailures: false,
           },
-          requireImdsv2: true,
+          requireImdsv2: props.requireImdsv2,
           signals: Signals.waitForAll(),
         });
         Tags.of(managerNodeAsg).add('role', 'manager');
@@ -307,7 +308,7 @@ export class InfraStack extends Stack {
         initOptions: {
           ignoreFailures: false,
         },
-        requireImdsv2: true,
+        requireImdsv2: props.requireImdsv2,
         signals: Signals.waitForAll(),
       });
       Tags.of(seedNodeAsg).add('role', 'manager');
@@ -335,7 +336,7 @@ export class InfraStack extends Stack {
         initOptions: {
           ignoreFailures: false,
         },
-        requireImdsv2: true,
+        requireImdsv2: props.requireImdsv2,
         signals: Signals.waitForAll(),
       });
       Tags.of(dataNodeAsg).add('role', 'data');
@@ -366,7 +367,7 @@ export class InfraStack extends Stack {
           initOptions: {
             ignoreFailures: false,
           },
-          requireImdsv2: true,
+          requireImdsv2: props.requireImdsv2,
           signals: Signals.waitForAll(),
         });
         Tags.of(clientNodeAsg).add('cluster', scope.stackName);
@@ -398,7 +399,7 @@ export class InfraStack extends Stack {
           initOptions: {
             ignoreFailures: false,
           },
-          requireImdsv2: true,
+          requireImdsv2: props.requireImdsv2,
           signals: Signals.waitForAll(),
         });
 
