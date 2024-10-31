@@ -22,7 +22,10 @@ fi
 git pull origin "$branch"
 ./gradlew TrafficCapture:trafficCaptureProxyServer:build -x test
 
-dist_age_seconds=$(( `date +%s` - `stat -L --format %Y "/home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer.zip"` ))
+# Calculate the age of the distribution file in seconds
+dist_file=$(ls /home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer*.zip)
+dist_age_seconds=$(( $(date +%s) - $(stat -L --format %Y "$dist_file") ))
+
 echo "Capture Proxy distribution was created $dist_age_seconds seconds ago"
 proxy_needs_restart=false
 if [ "$dist_age_seconds" -lt 60 ]; then
@@ -42,7 +45,9 @@ if [ "$proxy_needs_restart" = true ]; then
   fi
 
   cd /home/ec2-user/capture-proxy || exit
-  cp /home/ec2-user/capture-proxy/opensearch-migrations/TrafficCapture/trafficCaptureProxyServer/build/distributions/trafficCaptureProxyServer.zip /home/ec2-user/capture-proxy
+  cp "$dist_file" /home/ec2-user/capture-proxy/trafficCaptureProxyServer.zip
   unzip -o trafficCaptureProxyServer.zip
+  # Move the file, matching any version in the name
   rm trafficCaptureProxyServer.zip
+  mv trafficCaptureProxyServer* ./trafficCaptureProxyServer
 fi
