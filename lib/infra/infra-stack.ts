@@ -75,7 +75,6 @@ export interface infraProps extends StackProps {
   readonly storageVolumeType: EbsDeviceVolumeType,
   readonly customRoleArn: string,
   readonly requireImdsv2: boolean,
-  readonly javaYumPackage?: string,
   readonly clusterVersion?: string,
 }
 
@@ -437,7 +436,7 @@ export class InfraStack extends Stack {
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      InitPackage.yum(props.javaYumPackage ? props.javaYumPackage : 'java-11-amazon-corretto'),
+      InitPackage.yum('java-11-amazon-corretto'),
       InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
@@ -521,6 +520,7 @@ export class InfraStack extends Stack {
     }
     const nodeConfig = clusterConfig.getConfig(`${scope.stackName}-${scope.account}-${scope.region}`,
         props.singleNodeCluster, scope.stackName, props.managerNodeCount, nodeType, props.additionalConfig)
+    //console.log(`HERE is config: ${nodeConfig}`)
     cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${nodeConfig}" > config/elasticsearch.yml`,
         {
           cwd: '/home/ec2-user',

@@ -225,7 +225,6 @@ export class OsClusterEntrypoint {
       const requireImdsv2Context = getContext(scope, jsonFileContext, 'requireImdsv2');
       const requireImdsv2 = !(requireImdsv2Context === 'false');
 
-      const javaYumPackage = getContext(scope, jsonFileContext, 'javaYumPackage');
       const clusterVersion = getContext(scope, jsonFileContext, 'clusterVersion');
 
       const jvmSysProps = getContext(scope, jsonFileContext, 'jvmSysProps');
@@ -334,7 +333,6 @@ export class OsClusterEntrypoint {
         storageVolumeType: volumeType,
         customRoleArn,
         requireImdsv2,
-        javaYumPackage,
         clusterVersion,
         ...props,
       });
