@@ -1,5 +1,6 @@
 import {dump} from "js-yaml";
 import {ClusterConfig} from "./cluster-config";
+import {InitCommand} from "aws-cdk-lib/aws-ec2";
 
 const nodeRoleSettings: { [key: string]: object } = {
     manager: {
@@ -44,6 +45,10 @@ export class Elasticsearch6Config implements ClusterConfig {
 
     constructor() {
         this.version = "ES_6";
+    }
+
+    getJavaInitElement() {
+        return InitCommand.shellCommand('set -ex;sudo amazon-linux-extras install corretto8 -y')
     }
 
     getSingleNodeBaseConfig(clusterName: string) {

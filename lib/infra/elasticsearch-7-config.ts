@@ -1,5 +1,6 @@
 import {dump} from "js-yaml";
 import {ClusterConfig} from "./cluster-config";
+import {InitCommand, InitPackage} from "aws-cdk-lib/aws-ec2";
 
 const nodeRoleSettings: { [key: string]: object } = {
     manager: {
@@ -31,6 +32,10 @@ export class Elasticsearch7Config implements ClusterConfig {
 
     constructor() {
         this.version = "ES_7";
+    }
+
+    getJavaInitElement() {
+        return InitPackage.yum('java-11-amazon-corretto')
     }
 
     getSingleNodeBaseConfig(clusterName: string) {

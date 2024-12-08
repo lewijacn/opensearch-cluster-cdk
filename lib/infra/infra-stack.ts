@@ -431,13 +431,19 @@ export class InfraStack extends Stack {
   }
 
   private static getCfnInitElement(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
-    const configFileDir = join(__dirname, '../opensearch-config');
-    let opensearchConfig: string;
+    let clusterConfig: ClusterConfig
+    if (props.clusterVersion && props.clusterVersion.startsWith("ES_6")) {
+      clusterConfig = new Elasticsearch6Config()
+    }
+    else {
+      console.info("Defaulting to Elasticsearch 7 configuration")
+      clusterConfig = new Elasticsearch7Config()
+    }
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      InitPackage.yum('java-11-amazon-corretto'),
       InitPackage.yum('git'),
+      clusterConfig.getJavaInitElement(),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
@@ -510,14 +516,6 @@ export class InfraStack extends Stack {
         }),
     ];
 
-    let clusterConfig: ClusterConfig
-    if (props.clusterVersion && props.clusterVersion.startsWith("ES_6")) {
-      clusterConfig = new Elasticsearch6Config()
-    }
-    else {
-      console.info("Defaulting to Elasticsearch 7 configuration")
-      clusterConfig = new Elasticsearch7Config()
-    }
     const nodeConfig = clusterConfig.getConfig(`${scope.stackName}-${scope.account}-${scope.region}`,
         props.singleNodeCluster, scope.stackName, props.managerNodeCount, nodeType, props.additionalConfig)
     //console.log(`HERE is config: ${nodeConfig}`)
