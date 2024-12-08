@@ -225,6 +225,9 @@ export class OsClusterEntrypoint {
       const requireImdsv2Context = getContext(scope, jsonFileContext, 'requireImdsv2');
       const requireImdsv2 = !(requireImdsv2Context === 'false');
 
+      const javaYumPackage = getContext(scope, jsonFileContext, 'javaYumPackage');
+      const clusterVersion = getContext(scope, jsonFileContext, 'clusterVersion');
+
       const jvmSysProps = getContext(scope, jsonFileContext, 'jvmSysProps');
 
       const osConfig = getContext(scope, jsonFileContext, 'additionalConfig');
@@ -235,6 +238,9 @@ export class OsClusterEntrypoint {
         } catch (e) {
           throw new Error(`Encountered following error while parsing additionalConfig json parameter: ${e}`);
         }
+      }
+      else {
+        ymlConfig = ""
       }
 
       const osdConfig = getContext(scope, jsonFileContext, 'additionalOsdConfig');
@@ -328,6 +334,8 @@ export class OsClusterEntrypoint {
         storageVolumeType: volumeType,
         customRoleArn,
         requireImdsv2,
+        javaYumPackage,
+        clusterVersion,
         ...props,
       });
 
