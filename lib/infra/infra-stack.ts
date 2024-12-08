@@ -431,13 +431,13 @@ export class InfraStack extends Stack {
     });
   }
 
-  private static getCfnInitElement(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string, javaYumPackage?: string): InitElement[] {
+  private static getCfnInitElement(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
     const configFileDir = join(__dirname, '../opensearch-config');
     let opensearchConfig: string;
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      InitPackage.yum(javaYumPackage ? javaYumPackage : 'java-11-amazon-corretto'),
+      InitPackage.yum(props.javaYumPackage ? props.javaYumPackage : 'java-11-amazon-corretto'),
       InitPackage.yum('git'),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
