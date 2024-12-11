@@ -37,7 +37,6 @@ import {
   ServicePrincipal,
 } from 'aws-cdk-lib/aws-iam';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { join } from 'path';
 import { CloudwatchAgent } from '../cloudwatch/cloudwatch-agent';
 import { RemoteStoreResources } from './remote-store-resources';
 import {Elasticsearch7Config} from "./elasticsearch-7-config";
@@ -518,7 +517,6 @@ export class InfraStack extends Stack {
 
     const nodeConfig = clusterConfig.getConfig(`${scope.stackName}-${scope.account}-${scope.region}`,
         props.singleNodeCluster, scope.stackName, props.managerNodeCount, nodeType, props.additionalConfig)
-    //console.log(`HERE is config: ${nodeConfig}`)
     cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${nodeConfig}" > config/elasticsearch.yml`,
         {
           cwd: '/home/ec2-user',

@@ -1,4 +1,0 @@
-cluster.name: "migration-source"
-network.host: 0
-http.port: 9200
-discovery.type: single-node

@@ -1,4 +1,0 @@
-cluster.name: "migration-source"
-cluster.initial_master_nodes: ["seed"]
-discovery.seed_providers: ec2
-network.host: 0
