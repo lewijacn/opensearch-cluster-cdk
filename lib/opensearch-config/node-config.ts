@@ -8,36 +8,6 @@ compatible open source license. */
 import { InstanceClass, InstanceSize, InstanceType } from 'aws-cdk-lib/aws-ec2';
 import { EbsDeviceVolumeType } from 'aws-cdk-lib/aws-autoscaling';
 
-export const nodeConfig = new Map<string, object>();
-
-nodeConfig.set('manager', {
-  'node.roles': ['master'],
-});
-
-nodeConfig.set('data', {
-  'node.roles': ['data', 'ingest'],
-});
-
-nodeConfig.set('seed-manager', {
-  'node.name': 'seed',
-  'node.roles': ['master'],
-});
-
-nodeConfig.set('seed-data', {
-  'node.name': 'seed',
-  'node.roles': ['master', 'data'],
-});
-
-nodeConfig.set('client', {
-  'node.name': 'client-node',
-  'node.roles': [],
-});
-
-nodeConfig.set('ml', {
-  'node.name': 'ml-node',
-  'node.roles': ['ml'],
-});
-
 export enum x64Ec2InstanceType {
   M5_XLARGE = 'm5.xlarge',
   M5_2XLARGE = 'm5.2xlarge',

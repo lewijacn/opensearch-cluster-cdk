@@ -37,12 +37,11 @@ import {
   ServicePrincipal,
 } from 'aws-cdk-lib/aws-iam';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { readFileSync } from 'fs';
-import { dump, load } from 'js-yaml';
-import { join } from 'path';
 import { CloudwatchAgent } from '../cloudwatch/cloudwatch-agent';
-import { nodeConfig } from '../opensearch-config/node-config';
 import { RemoteStoreResources } from './remote-store-resources';
+import {Elasticsearch7Config} from "./elasticsearch-7-config";
+import {ClusterConfig} from "./cluster-config";
+import {Elasticsearch6Config} from "./elasticsearch-6-config";
 
 export interface infraProps extends StackProps {
   readonly vpc: IVpc,
@@ -75,6 +74,7 @@ export interface infraProps extends StackProps {
   readonly storageVolumeType: EbsDeviceVolumeType,
   readonly customRoleArn: string,
   readonly requireImdsv2: boolean,
+  readonly clusterVersion?: string,
 }
 
 export class InfraStack extends Stack {
@@ -279,14 +279,14 @@ export class InfraStack extends Stack {
         });
         Tags.of(managerNodeAsg).add('role', 'manager');
 
-        seedConfig = 'seed-manager';
+        seedConfig = 'seedManager';
       } else {
-        seedConfig = 'seed-data';
+        seedConfig = 'seedData';
       }
 
       const seedNodeAsg = new AutoScalingGroup(this, 'seedNodeAsg', {
         vpc: props.vpc,
-        instanceType: (seedConfig === 'seed-manager') ? defaultInstanceType : props.dataEc2InstanceType,
+        instanceType: (seedConfig === 'seedManager') ? defaultInstanceType : props.dataEc2InstanceType,
         machineImage: MachineImage.latestAmazonLinux({
           generation: AmazonLinuxGeneration.AMAZON_LINUX_2,
           cpuType: props.cpuType,
@@ -302,7 +302,7 @@ export class InfraStack extends Stack {
         blockDevices: [{
           deviceName: '/dev/xvda',
           // eslint-disable-next-line max-len
-          volume: (seedConfig === 'seed-manager') ? BlockDeviceVolume.ebs(50, { deleteOnTermination: true, volumeType: props.storageVolumeType }) : BlockDeviceVolume.ebs(props.dataNodeStorage, { deleteOnTermination: true, volumeType: props.storageVolumeType }),
+          volume: (seedConfig === 'seedManager') ? BlockDeviceVolume.ebs(50, { deleteOnTermination: true, volumeType: props.storageVolumeType }) : BlockDeviceVolume.ebs(props.dataNodeStorage, { deleteOnTermination: true, volumeType: props.storageVolumeType }),
         }],
         init: CloudFormationInit.fromElements(...InfraStack.getCfnInitElement(this, clusterLogGroup, props, seedConfig)),
         initOptions: {
@@ -430,13 +430,19 @@ export class InfraStack extends Stack {
   }
 
   private static getCfnInitElement(scope: Stack, logGroup: LogGroup, props: infraProps, nodeType?: string): InitElement[] {
-    const configFileDir = join(__dirname, '../opensearch-config');
-    let opensearchConfig: string;
+    let clusterConfig: ClusterConfig
+    if (props.clusterVersion && props.clusterVersion.startsWith("ES_6")) {
+      clusterConfig = new Elasticsearch6Config()
+    }
+    else {
+      console.info("Defaulting to Elasticsearch 7 configuration")
+      clusterConfig = new Elasticsearch7Config()
+    }
 
     const cfnInitConfig: InitElement[] = [
       InitPackage.yum('amazon-cloudwatch-agent'),
-      InitPackage.yum('java-11-amazon-corretto'),
       InitPackage.yum('git'),
+      clusterConfig.getJavaInitElement(),
       CloudwatchAgent.asInitFile('/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json',
         {
           agent: {
@@ -509,45 +515,14 @@ export class InfraStack extends Stack {
         }),
     ];
 
-    // Add elasticsearch.yml config
-    if (props.singleNodeCluster) {
-      const fileContent: any = load(readFileSync(`${configFileDir}/single-node-base-config.yml`, 'utf-8'));
-
-      fileContent['cluster.name'] = `${scope.stackName}-${scope.account}-${scope.region}`;
-
-      opensearchConfig = dump(fileContent).toString();
-      cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${opensearchConfig}" > config/elasticsearch.yml`,
-        {
-          cwd: '/home/ec2-user',
-        }));
-    } else {
-      const baseConfig: any = load(readFileSync(`${configFileDir}/multi-node-base-config.yml`, 'utf-8'));
-
-      baseConfig['cluster.name'] = `${scope.stackName}-${scope.account}-${scope.region}`;
-
-      // use discovery-ec2 to find manager nodes by querying IMDS
-      baseConfig['discovery.ec2.tag.Name'] = `${scope.stackName}/seedNodeAsg,${scope.stackName}/managerNodeAsg`;
-
-      // // Change default port to 19200 to allow capture proxy at 9200
-      // if (nodeType && (nodeType === 'manager' || nodeType === 'seed-manager')) {
-      //   baseConfig['http.port'] = 19200;
-      // }
-
-      const commonConfig = dump(baseConfig).toString();
-      cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${commonConfig}" > config/elasticsearch.yml`,
+    const nodeConfig = clusterConfig.getConfig(`${scope.stackName}-${scope.account}-${scope.region}`,
+        props.singleNodeCluster, scope.stackName, props.managerNodeCount, nodeType, props.additionalConfig)
+    cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${nodeConfig}" > config/elasticsearch.yml`,
         {
           cwd: '/home/ec2-user',
         }));
 
-      if (nodeType != null) {
-        const nodeTypeConfig = nodeConfig.get(nodeType);
-        const nodeConfigData = dump(nodeTypeConfig).toString();
-        cfnInitConfig.push(InitCommand.shellCommand(`set -ex;cd elasticsearch; echo "${nodeConfigData}" >> config/elasticsearch.yml`,
-          {
-            cwd: '/home/ec2-user',
-          }));
-      }
-
+    if (!props.singleNodeCluster) {
       if (!props.minDistribution) {
         cfnInitConfig.push(InitCommand.shellCommand('set -ex;cd elasticsearch;sudo -u ec2-user bin/elasticsearch-plugin install discovery-ec2 --batch', {
           cwd: '/home/ec2-user',
