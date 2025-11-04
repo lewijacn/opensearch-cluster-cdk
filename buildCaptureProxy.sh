@@ -4,8 +4,8 @@
 
 git_http_url=$1
 branch=$2
-# This must be match Java requirement from Migration Assistant (Java 11 currently)
-#export JAVA_HOME=/home/ec2-user/elasticsearch/jdk
+# Run gradle with java 17, gradle will build capture proxy with java 11
+export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto
 
 mkdir -p /home/ec2-user/capture-proxy/opensearch-migrations
 cd /home/ec2-user/capture-proxy/opensearch-migrations || exit
