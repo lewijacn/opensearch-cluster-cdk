@@ -670,6 +670,7 @@ echo -n "$ST" | "$ES_HOME/bin/elasticsearch-keystore" add -f -x s3.client.defaul
 cp "$TMP_CONF/elasticsearch.keystore" "$ES_HOME/config/elasticsearch.keystore"
 chmod 0600 "$ES_HOME/config/elasticsearch.keystore"
 rm -rf "$TMP_CONF"
+unset ES_PATH_CONF
 SCRIPTEOF
 chmod +x /home/ec2-user/refresh-es-keystore.sh
 chown ec2-user:ec2-user /home/ec2-user/refresh-es-keystore.sh`,
