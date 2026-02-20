@@ -264,6 +264,9 @@ export class OsClusterEntrypoint {
       const remoteStore = getContext(scope, jsonFileContext, 'enableRemoteStore');
       const enableRemoteStore = remoteStore === 'true';
 
+      const imdsCredentialRefresh = getContext(scope, jsonFileContext, 'enableImdsCredentialRefresh');
+      const enableImdsCredentialRefresh = imdsCredentialRefresh === 'true';
+
       const customRoleArn = getContext(scope, jsonFileContext, 'customRoleArn');
 
       const networkAvailabilityZones = getContext(scope, jsonFileContext, 'networkAvailabilityZones');
@@ -334,6 +337,7 @@ export class OsClusterEntrypoint {
         customRoleArn,
         requireImdsv2,
         clusterVersion,
+        enableImdsCredentialRefresh,
         ...props,
       });
 
