@@ -75,6 +75,7 @@ export interface infraProps extends StackProps {
   readonly customRoleArn: string,
   readonly requireImdsv2: boolean,
   readonly clusterVersion?: string,
+  readonly enableImdsCredentialRefresh?: boolean,
 }
 
 export class InfraStack extends Stack {
@@ -632,6 +633,93 @@ export class InfraStack extends Stack {
         cwd: '/home/ec2-user',
         ignoreErrors: false,
       }));
+
+    // Set up periodic IMDS credential refresh for S3 keystore
+    // This is the EC2 analog of the k8s sidecar pattern used in opensearch-migrations testClusters
+    if (props.enableImdsCredentialRefresh) {
+      // Create the credential refresh script
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex; cat > /home/ec2-user/refresh-es-keystore.sh << 'SCRIPTEOF'
+#!/bin/bash
+set -euo pipefail
+
+ES_HOME="/home/ec2-user/elasticsearch"
+
+# Fetch IMDSv2 token and credentials
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+ROLE=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE")
+
+AK=$(echo "$CREDS" | sed -n 's/.*"AccessKeyId"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+SK=$(echo "$CREDS" | sed -n 's/.*"SecretAccessKey"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+ST=$(echo "$CREDS" | sed -n 's/.*"Token"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+
+if [[ -z "$AK" || -z "$SK" || -z "$ST" ]]; then
+  echo "Failed to parse IMDS credentials" >&2
+  exit 1
+fi
+
+# Update keystore in a temp dir to avoid corrupting the live keystore
+TMP_CONF="$(mktemp -d)"
+export ES_PATH_CONF="$TMP_CONF"
+cp "$ES_HOME/config/elasticsearch.keystore" "$TMP_CONF/elasticsearch.keystore" 2>/dev/null || "$ES_HOME/bin/elasticsearch-keystore" create
+
+echo -n "$AK" | "$ES_HOME/bin/elasticsearch-keystore" add -f -x s3.client.default.access_key
+echo -n "$SK" | "$ES_HOME/bin/elasticsearch-keystore" add -f -x s3.client.default.secret_key
+echo -n "$ST" | "$ES_HOME/bin/elasticsearch-keystore" add -f -x s3.client.default.session_token
+
+cp "$TMP_CONF/elasticsearch.keystore" "$ES_HOME/config/elasticsearch.keystore"
+chmod 0600 "$ES_HOME/config/elasticsearch.keystore"
+rm -rf "$TMP_CONF"
+SCRIPTEOF
+chmod +x /home/ec2-user/refresh-es-keystore.sh
+chown ec2-user:ec2-user /home/ec2-user/refresh-es-keystore.sh`,
+      {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+
+      // Create systemd service and timer, then enable
+      // The reload script waits for ES, refreshes keystore, then reloads secure settings
+      cfnInitConfig.push(InitCommand.shellCommand(`set -ex
+cat > /home/ec2-user/reload-es-keystore.sh << 'RELOADEOF'
+#!/bin/bash
+set -euo pipefail
+/home/ec2-user/refresh-es-keystore.sh
+until curl -sS -o /dev/null "http://localhost:9200"; do sleep 2; done
+curl -sS -X POST "http://localhost:9200/_nodes/reload_secure_settings" || true
+RELOADEOF
+chmod +x /home/ec2-user/reload-es-keystore.sh
+chown ec2-user:ec2-user /home/ec2-user/reload-es-keystore.sh
+
+cat > /etc/systemd/system/refresh-es-keystore.service << 'EOF'
+[Unit]
+Description=Refresh Elasticsearch S3 keystore credentials from IMDS
+
+[Service]
+Type=oneshot
+User=ec2-user
+ExecStart=/home/ec2-user/reload-es-keystore.sh
+EOF
+
+cat > /etc/systemd/system/refresh-es-keystore.timer << 'EOF'
+[Unit]
+Description=Periodically refresh Elasticsearch S3 keystore credentials
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now refresh-es-keystore.timer`,
+      {
+        cwd: '/home/ec2-user',
+        ignoreErrors: false,
+      }));
+    }
 
     // If captureProxyTarUrl is provided then download and unpack capture proxy, otherwise require users to execute buildCaptureProxy.sh script for setup.
     // Currently, places capture proxy required files on all nodes but only Coordinator nodes need
